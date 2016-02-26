@@ -5,14 +5,20 @@ import json
 
 from MyConfig import MyConfig
 
+# Globals
+MAX_ERROR_COUNT = 10
+_ERRORS_ = 0
+
 
 def _get_provider_(number):
+    global _ERRORS_
     cms_api = 'https://npiregistry.cms.hhs.gov/api/?'
-    if _validate_(number):
+    if _validate_(number) and _ERRORS_ <= MAX_ERROR_COUNT:
         try:    
             response = urllib2.urlopen(cms_api+"number="+str(number),
                                        timeout=2)
         except urllib2.URLError as e:
+            _ERRORS_ += 1
             err_msg = "%s | %s" % (number, e)
             _log_error_(err_msg)
             return None
@@ -20,8 +26,8 @@ def _get_provider_(number):
         data = json.loads(response.read())
             
         if 'result_count' in data:
-           if data['result_count'] == 1:
-               return data['results'][0]
+            if data['result_count'] == 1:
+                return data['results'][0]
         else:
             _log_error_(data)
     return None
@@ -95,6 +101,8 @@ class CmsProvider(object):  # always inherit from object.  It's just a good idea
             self._taxonomies_ = self._get_taxonomies_()
             self._identifiers_ = None
             # pull out specifics to actually be used
+            self.first_name = self._get_first_name_()
+            self.last_name = self._get_last_name_()
             self.cedential = self._get_credential_()
             self.specialties = self._get_specialties_()
         else:
@@ -102,11 +110,20 @@ class CmsProvider(object):  # always inherit from object.  It's just a good idea
             self.specialties = None
     
     def _get_basic_(self):
-        print self._provider_
         if "basic" in self._provider_:
             return self._provider_["basic"]
         else:
             return None
+        
+    def _get_first_name_(self):
+        if self._basic_:
+            if "first_name" in self._basic_:
+                return self._basic_['first_name']
+            
+    def _get_last_name_(self):
+        if self._basic_:
+            if "last_name" in self._basic_:
+                return self._basic_['last_name']
     
     def _get_credential_(self):
         if self._basic_:

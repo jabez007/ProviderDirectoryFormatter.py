@@ -160,10 +160,10 @@ class EpicProviderDirectory:
                 with open("sql.err", 'a') as err:
                     err.write("%s\n" % e)
                 with open("epic.domains", 'r') as f:
-                    domains = [d.strip() for s in f.read().split("\n")]
+                    domains = [d.strip() for d in f.read().split("\n")]
         else:
             with open("epic.domains", 'r') as f:
-                domains = [d.strip() for s in f.read().split("\n")]
+                domains = [d.strip() for d in f.read().split("\n")]
                         
         return domains        
 
@@ -218,16 +218,27 @@ class EpicProviderDirectory:
             return []
         
         npi = self._format_npi_(mapped_row[self.headers_index['NPI']])
-        if npi:
+        first_name = mapped_row[self.headers_index['givenName']]
+        last_name = mapped_row[self.headers_index['familyName']]
+        name = [last_name, first_name]
+        if npi:  # this should be in CMS
             mapped_row[self.headers_index['rowType']] = 1
             provider = CmsProvider(npi)
-            if provider:
+            if provider:  # we found this provider in CMS
                 mapped_row[self.headers_index['degreeName']] = provider.credential
                 mapped_row[self.headers_index['specialties']] = provider.specialties
+                if all([not n for n in name]):  # what if the directory doesn't have a name?
+                    mapped_row[self.headers_index['givenName']] = provider.first_name
+                    mapped_row[self.headers_index['familyName']] = provider.last_name
+            elif all([not n for n in name]):
+                return []
+            else:  # if we didn't get a match from CMS, then we can't map specialties
+                mapped_row[self.headers_index['specialties']] = None
+        # otherwise, this might be a location the nonEpic site is trying to share
+        elif all([not n for n in name]):  # but if there is no name, we can't import it
+            return []
         else:
-            first_name = mapped_row[self.headers_index['givenName']]
-            last_name = mapped_row[self.headers_index['familyName']]
-            if any([not name for name in [first_name, last_name]]):
+            if any([not n for n in name]):  # if this is a location, then only one name should be populated
                 mapped_row[self.headers_index['rowType']] = 2
             else:
                 return []
