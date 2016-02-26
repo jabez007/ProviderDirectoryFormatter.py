@@ -1,6 +1,6 @@
-/.settings
-/.project
-/.pydevproject
+/.settings/
+/*.project
+/*.pydevproject
 /setup.py
 /*.pyc
 /*.err
