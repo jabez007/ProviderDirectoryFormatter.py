@@ -93,6 +93,11 @@ class CmsProvider(object):  # always inherit from object.  It's just a good idea
     def __init__(self, provider):
         self.specialties_map = MyConfig('config').config['specialties']
         
+        self.first_name = None
+        self.last_name = None
+        self.cedential = None
+        self.specialties = None
+        
         self._provider_ = provider 
         if self._provider_:
             # load of the different keys from CMS
@@ -105,9 +110,6 @@ class CmsProvider(object):  # always inherit from object.  It's just a good idea
             self.last_name = self._get_last_name_()
             self.cedential = self._get_credential_()
             self.specialties = self._get_specialties_()
-        else:
-            self.cedential = None
-            self.specialties = None
     
     def _get_basic_(self):
         if "basic" in self._provider_:
@@ -119,16 +121,19 @@ class CmsProvider(object):  # always inherit from object.  It's just a good idea
         if self._basic_:
             if "first_name" in self._basic_:
                 return self._basic_['first_name']
+        return None
             
     def _get_last_name_(self):
         if self._basic_:
             if "last_name" in self._basic_:
                 return self._basic_['last_name']
+        return None
     
     def _get_credential_(self):
         if self._basic_:
             if 'credential' in self._basic_:
                 return self._basic_['credential']
+        return None
             
     def _get_taxonomies_(self):
         if "taxonomies" in self._provider_:
@@ -138,7 +143,6 @@ class CmsProvider(object):  # always inherit from object.  It's just a good idea
     
     def _get_specialties_(self):
         specialties = []
-        
         if self._taxonomies__:
             for taxonomy in self._taxonomies_:
                 if "desc" in taxonomy:
@@ -147,17 +151,9 @@ class CmsProvider(object):  # always inherit from object.  It's just a good idea
                         specialty_category = str(self.specialties_map[description])
                         if specialty_category not in specialties:
                             specialties.append(specialty_category)
-        
         return "~".join(specialties)
 
 # # # #
-
-#_provider_ = Verify(1629022546)
-#for addr in _provider_['addresses']:
-    #print addr['address_1']
-    #print addr['address_2']
-    #print addr['city'],",",addr['state'],addr['postal_code']
-
 '''
 {
 "result_count":1, "results":[

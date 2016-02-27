@@ -6,6 +6,7 @@ import csv
 import sys
 from time import time
 import pypyodbc
+import re
 
 from MyConfig import MyConfig
 from CmsProvider import CmsProvider
@@ -168,6 +169,9 @@ class EpicProviderDirectory:
         return domains        
 
     def _write_directory_(self, saveAs):
+        """
+        writes out a provider directory to given filename
+        """
         start = time()
         # Setup Progress Bar
         toolbar_width = 50
@@ -204,6 +208,9 @@ class EpicProviderDirectory:
         return
     
     def _format_row_(self, row, count):
+        """
+        formats a row to be usable by Epic provider directory utilities.
+        """
         mapped_row = []
         for field in self.headers:
             if type(self.mapped[field]) is int:
@@ -213,7 +220,11 @@ class EpicProviderDirectory:
                 
         mapped_row[self.headers_index['uniqProvKey']] = count
 
-        domain = mapped_row[self.headers_index['directAddress']].split("@")[1]
+        direct_address = mapped_row[self.headers_index['directAddress']]
+        if not self._validate_direct_address_(direct_address):
+            return []
+
+        domain = direct_address.split("@")[1]
         if domain in self._epic_domains_:
             return []
         
@@ -240,6 +251,7 @@ class EpicProviderDirectory:
         else:
             if any([not n for n in name]):  # if this is a location, then only one name should be populated
                 mapped_row[self.headers_index['rowType']] = 2
+                mapped_row[self.headers_index['specialties']] = None  # nothing from CMS, so we can't map specialties
             else:
                 return []
         
@@ -248,6 +260,66 @@ class EpicProviderDirectory:
         mapped_row[self.headers_index['fax']] = self._format_phone_(mapped_row[self.headers_index['fax']])
         
         return mapped_row
+    
+    def _validate_direct_address_(self, direct_address):
+        """
+        takes a string and checks if it follows as a Direct address. 
+        Essentially checking if it is a valid email address.
+        :param direct_address: <string> the suspected Direct address (usersname@direct.domain.com)
+        :return: <boolean> True, if the suspected Direct address checks out.
+        """
+        if not direct_address:
+            return False
+        if len(direct_address) > 184:
+            return False
+        direct_address_ary = direct_address.split("@")
+        if len(direct_address_ary) != 2:  # yes, there could be multiple "@", but those sort of addresses wont work.
+            return False
+        local = direct_address_ary[0]
+        domain = direct_address_ary[1]
+        if not self._validate_direct_local_(local):
+            return False
+        if not self._validate_direct_domain_(domain):
+            return False
+        return True
+    
+    def _validate_direct_local_(self, local):
+        """
+        checks the local (before "@") portion of a suspected Direct address
+        :param local: <string> local piece of suspected Direct address
+        :return: <boolean> True, if the local piece checks out
+        """
+        if not local:
+            return False
+        if len(local) > 184:
+            return False
+        if local[0] == "." or local[-1] == ".":  # Can't start or end with "." 
+            return False
+        if ".." in local:  # Can't have two consecutive "." 
+            return False
+        # regex search for "~`!#$%^&*()-_=+/?'|."
+        # regex special characters: . ^ $ * + ? *? +? ?? - 
+        valid_local = re.compile(r"^[a-zA-Z0-9~`!#\$%\^&\*()\-_=\+/\?'|\.]{1,252}$") # escape regex special characters
+        if not valid_local.match(local):
+            return False
+        return True
+    
+    def _validate_direct_domain(self, domain):
+        """
+        checks the domain (after "@") portion of  suspected Direct address
+        :param domain: <string> domain piece of suspected Direct address
+        :return: <boolean> True, if the domain piece checks out
+        """
+        if not domain:
+            return False
+        if len(domain) > 184:
+            return False
+        # regex check of each piece of the domain
+        valid_domain = re.compile(r"^[a-zA-Z0-9\-]+$")
+        for d in domain.split("."):
+            if not valid_domain.match(d):
+                return False
+        return True
     
     def _format_npi_(self, field):
         return self._strip_non_alphanumerics_(field)
