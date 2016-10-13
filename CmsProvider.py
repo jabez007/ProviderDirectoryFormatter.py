@@ -13,10 +13,11 @@ _ERRORS_ = 0
 def _get_provider_(number):
     global _ERRORS_
     cms_api = 'https://npiregistry.cms.hhs.gov/api/?'
+
     if _validate_(number) and _ERRORS_ <= MAX_ERROR_COUNT:
         try:    
             response = urllib2.urlopen(cms_api+"number="+str(number),
-                                       timeout=2)
+                                       timeout=10)
         except urllib2.URLError as e:
             _ERRORS_ += 1
             err_msg = "%s | %s" % (number, e)
@@ -30,6 +31,7 @@ def _get_provider_(number):
                 return data['results'][0]
         else:
             _log_error_(data)
+
     return None
 
 
@@ -81,79 +83,164 @@ def _log_error_(msg):
     
 
 class CmsProvider(object):  # always inherit from object.  It's just a good idea...
-    
-    def __new__(cls, *args, **kwargs):
-        provider = _get_provider_(args[0])
-        if provider:
-            args[0] = provider
-            return object.__new__(cls, *args, **kwargs)
-        else:
-            return None
 
-    def __init__(self, provider):
-        self.specialties_map = MyConfig('config').config['specialties']
-        
-        self.first_name = None
-        self.last_name = None
-        self.cedential = None
+    def __init__(self, provider_npi):
+        self.npi = None
+
+        self.family_name = None
+        self.given_name = None
+        self.middle_name = None
+        self.suffix = None
+        self.prefix = None
+        self.degree = None
         self.specialties = None
-        
-        self._provider_ = provider 
-        if self._provider_:
-            # load of the different keys from CMS
-            self._basic_ = self._get_basic_()
-            self._addresses_ = None
-            self._taxonomies_ = self._get_taxonomies_()
-            self._identifiers_ = None
-            # pull out specifics to actually be used
-            self.first_name = self._get_first_name_()
-            self.last_name = self._get_last_name_()
-            self.cedential = self._get_credential_()
-            self.specialties = self._get_specialties_()
-    
-    def _get_basic_(self):
-        if "basic" in self._provider_:
-            return self._provider_["basic"]
-        else:
-            return None
-        
-    def _get_first_name_(self):
-        if self._basic_:
-            if "first_name" in self._basic_:
-                return self._basic_['first_name']
-        return None
-            
-    def _get_last_name_(self):
-        if self._basic_:
-            if "last_name" in self._basic_:
-                return self._basic_['last_name']
-        return None
-    
-    def _get_credential_(self):
-        if self._basic_:
-            if 'credential' in self._basic_:
-                return self._basic_['credential']
-        return None
-            
-    def _get_taxonomies_(self):
-        if "taxonomies" in self._provider_:
-            return self._provider_["taxonomies"]
-        else:
-            return None
-    
-    def _get_specialties_(self):
-        specialties = []
-        if self._taxonomies__:
-            for taxonomy in self._taxonomies_:
-                if "desc" in taxonomy:
-                    description = taxonomy["desc"].upper()
-                    if description in self.specialties_map:
-                        specialty_category = str(self.specialties_map[description])
-                        if specialty_category not in specialties:
-                            specialties.append(specialty_category)
-        return "~".join(specialties)
+
+        self.location_address = {"streetLine1": None,
+                                 "streetLine2": None,
+                                 "streetLine3": None,
+                                 "city": None,
+                                 "state": None,
+                                 "zip": None,
+                                 "country": None,
+                                 "workPhone": None,
+                                 "fax": None,
+                                 "addressTitle": "LOCATION"}
+        self.mailing_address = {"streetLine1": None,
+                                "streetLine2": None,
+                                "streetLine3": None,
+                                "city": None,
+                                "state": None,
+                                "zip": None,
+                                "country": None,
+                                "workPhone": None,
+                                "fax": None,
+                                "addressTitle": "MAILING"}
+
+        try:
+            cms_provider = _get_provider_(provider_npi)
+        except:  # SSLError: ('The read operation timed out',)
+            _log_error_("_get_provider_ error: %s" % provider_npi)
+            return
+
+        if cms_provider:
+            self.specialties_map = MyConfig('config').config['specialties']
+
+            self.npi = cms_provider["number"]
+
+            if "basic" in cms_provider:
+                self._set_name_(cms_provider["basic"])
+
+            if "taxonomies" in cms_provider:
+                self._set_specialties_(cms_provider["taxonomies"])
+
+            if "addresses" in cms_provider:
+                self._set_addresses_(cms_provider["addresses"])
+
+    def _set_name_(self, basic):
+        for name in ["last_name", "first_name", "middle_name", "name_suffix", "name_prefix", "credential"]:
+            if name in basic:
+                self._case_set_name_(basic, name)
+
+    def _case_set_name_(self, basic, name):
+        if name == "last_name":
+            self.family_name = basic[name]
+        elif name == "first_name":
+            self.given_name = basic[name]
+        elif name == "middle_name":
+            self.middle_name = basic[name]
+        elif name == "name_suffix":
+            self.suffix = basic[name]
+        elif name == "name_prefix":
+            self.prefix = basic[name]
+        elif name == "credential":
+            self.degree = basic[name]
+
+    def _set_specialties_(self, taxonomies):
+        specialties = list()
+
+        for taxonomy in taxonomies:
+            if "desc" in taxonomy:
+                description = taxonomy["desc"].upper()
+                if description in self.specialties_map:
+                    specialty_category = str(self.specialties_map[description])
+                    if specialty_category not in specialties:
+                        specialties.append(specialty_category)
+
+        self.specialties = "~".join(specialties)
+
+    def get_name(self):
+        name = list()
+        name.append(self.family_name)
+        name.append(self.given_name)
+        name.append(self.middle_name)
+        name.append(self.suffix)
+        name.append(self.prefix)
+        name.append(self.degree)
+        name.append(self.specialties)
+        return name
+
+    def _set_addresses_(self, addresses):
+        for address in addresses:
+            if "address_purpose" in address:
+                purpose = address["address_purpose"]
+                if purpose == "LOCATION":
+                    self._set_address_(self.location_address, address)
+                if purpose == "MAILING":
+                    self._set_address_(self.mailing_address, address)
+
+    def _set_address_(self, var, address):
+        for field in ["address_1", "address_2", "city", "state", "postal_code", "country_code", "telephone_number",
+                      "fax_number"]:
+            if field in address:
+                self._case_set_address_(var, address, field)
+
+    def _case_set_address_(self, var, address, field):
+        if field == "address_1":
+            var["streetLine1"] = address[field]
+        elif field == "address_2":
+            var["streetLine2"] = address[field]
+        elif field == "city":
+            var["city"] = address[field]
+        elif field == "state":
+            var["state"] = address[field]
+        elif field == "postal_code":
+            var["zip"] = address[field]
+        elif field == "country_code":
+            var["country"] = address[field]
+        elif field == "telephone_number":
+            var["workPhone"] = address[field]
+        elif field == "fax_number":
+            var["fax"] = address[field]
+
+    def get_address(self, address_type):
+        if address_type.upper() == "LOCATION":
+            return self._get_address_(self.location_address)
+        elif address_type.upper() == "MAILING":
+            return self._get_address_(self.mailing_address)
+
+    def _get_address_(self, var):
+        address = list()
+        address.append(var["streetLine1"])
+        address.append(var["streetLine2"])
+        address.append(var["streetLine3"])
+        address.append(var["city"])
+        address.append(var["state"])
+        address.append(var["zip"])
+        address.append(var["country"])
+        address.append(var["workPhone"])
+        address.append(var["fax"])
+        address.append(var["addressTitle"])
+        return address
+
 
 # # # #
+
+
+if __name__ == "__main__":
+    provider = CmsProvider(1629022546)
+    print provider.get_name()
+    print provider.get_address("mailing")
+
 '''
 {
 "result_count":1, "results":[
