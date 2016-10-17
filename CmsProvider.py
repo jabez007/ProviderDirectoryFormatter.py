@@ -36,7 +36,7 @@ def _get_provider_(number):
 
 
 def _validate_(number, prefix=False): 
-    #Using the Luhn formula on the identifier portion, the check digit is calculated as follows
+    # Using the Luhn formula on the identifier portion, the check digit is calculated as follows
     try:
         int(number)
     except ValueError:
@@ -44,10 +44,10 @@ def _validate_(number, prefix=False):
         return False
            
     digits = [d for d in str(number)]
-    if not any(fd == digits[0] for fd in ['1','2']):
+    if not any(fd == digits[0] for fd in ['1', '2']):
         _log_error_("%s does not start with 1 or 2" % number)
         return False
-    if not prefix and len(digits)!=10:
+    if not prefix and len(digits) != 10:
         _log_error_("%s does not have 10 digits" % number)
         return False
     
@@ -85,37 +85,6 @@ def _log_error_(msg):
 class CmsProvider(object):  # always inherit from object.  It's just a good idea...
 
     def __init__(self, provider_npi):
-        self.npi = None
-
-        self.family_name = None
-        self.given_name = None
-        self.middle_name = None
-        self.suffix = None
-        self.prefix = None
-        self.degree = None
-        self.specialties = None
-
-        self.location_address = {"streetLine1": None,
-                                 "streetLine2": None,
-                                 "streetLine3": None,
-                                 "city": None,
-                                 "state": None,
-                                 "zip": None,
-                                 "country": None,
-                                 "workPhone": None,
-                                 "fax": None,
-                                 "addressTitle": "LOCATION"}
-        self.mailing_address = {"streetLine1": None,
-                                "streetLine2": None,
-                                "streetLine3": None,
-                                "city": None,
-                                "state": None,
-                                "zip": None,
-                                "country": None,
-                                "workPhone": None,
-                                "fax": None,
-                                "addressTitle": "MAILING"}
-
         try:
             cms_provider = _get_provider_(provider_npi)
         except:  # SSLError: ('The read operation timed out',)
@@ -123,9 +92,15 @@ class CmsProvider(object):  # always inherit from object.  It's just a good idea
             return
 
         if cms_provider:
-            self.specialties_map = MyConfig('config').config['specialties']
+            config = MyConfig()
 
-            self.npi = cms_provider["number"]
+            self.fields = config.headers
+            for field in self.fields:
+                setattr(self, field, "")
+
+            self.specialties_map = config.specialties
+
+            self.number = cms_provider["number"]
 
             if "basic" in cms_provider:
                 self._set_name_(cms_provider["basic"])
@@ -139,21 +114,7 @@ class CmsProvider(object):  # always inherit from object.  It's just a good idea
     def _set_name_(self, basic):
         for name in ["last_name", "first_name", "middle_name", "name_suffix", "name_prefix", "credential"]:
             if name in basic:
-                self._case_set_name_(basic, name)
-
-    def _case_set_name_(self, basic, name):
-        if name == "last_name":
-            self.family_name = basic[name]
-        elif name == "first_name":
-            self.given_name = basic[name]
-        elif name == "middle_name":
-            self.middle_name = basic[name]
-        elif name == "name_suffix":
-            self.suffix = basic[name]
-        elif name == "name_prefix":
-            self.prefix = basic[name]
-        elif name == "credential":
-            self.degree = basic[name]
+                setattr(self, name, basic[name])
 
     def _set_specialties_(self, taxonomies):
         specialties = list()
@@ -168,78 +129,34 @@ class CmsProvider(object):  # always inherit from object.  It's just a good idea
 
         self.specialties = "~".join(specialties)
 
-    def get_name(self):
-        name = list()
-        name.append(self.family_name)
-        name.append(self.given_name)
-        name.append(self.middle_name)
-        name.append(self.suffix)
-        name.append(self.prefix)
-        name.append(self.degree)
-        name.append(self.specialties)
-        return name
-
     def _set_addresses_(self, addresses):
         for address in addresses:
             if "address_purpose" in address:
                 purpose = address["address_purpose"]
                 if purpose == "LOCATION":
-                    self._set_address_(self.location_address, address)
-                if purpose == "MAILING":
-                    self._set_address_(self.mailing_address, address)
+                    self._set_address_(address)
+                # if purpose == "MAILING":
+                    # self._set_address_(address)
 
-    def _set_address_(self, var, address):
+    def _set_address_(self, address):
         for field in ["address_1", "address_2", "city", "state", "postal_code", "country_code", "telephone_number",
                       "fax_number"]:
             if field in address:
-                self._case_set_address_(var, address, field)
+                setattr(self, field, address[field])
 
-    def _case_set_address_(self, var, address, field):
-        if field == "address_1":
-            var["streetLine1"] = address[field]
-        elif field == "address_2":
-            var["streetLine2"] = address[field]
-        elif field == "city":
-            var["city"] = address[field]
-        elif field == "state":
-            var["state"] = address[field]
-        elif field == "postal_code":
-            var["zip"] = address[field]
-        elif field == "country_code":
-            var["country"] = address[field]
-        elif field == "telephone_number":
-            var["workPhone"] = address[field]
-        elif field == "fax_number":
-            var["fax"] = address[field]
+    def get_missing(self, field):
+        if hasattr(self, field):
+            return getattr(self, field)
 
-    def get_address(self, address_type):
-        if address_type.upper() == "LOCATION":
-            return self._get_address_(self.location_address)
-        elif address_type.upper() == "MAILING":
-            return self._get_address_(self.mailing_address)
-
-    def _get_address_(self, var):
-        address = list()
-        address.append(var["streetLine1"])
-        address.append(var["streetLine2"])
-        address.append(var["streetLine3"])
-        address.append(var["city"])
-        address.append(var["state"])
-        address.append(var["zip"])
-        address.append(var["country"])
-        address.append(var["workPhone"])
-        address.append(var["fax"])
-        address.append(var["addressTitle"])
-        return address
-
+    def __str__(self):
+        return ",".join(str(getattr(self, field)) for field in self.fields)
 
 # # # #
 
 
 if __name__ == "__main__":
     provider = CmsProvider(1629022546)
-    print provider.get_name()
-    print provider.get_address("mailing")
+    print provider
 
 '''
 {

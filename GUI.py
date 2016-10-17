@@ -5,10 +5,9 @@ import tkMessageBox
 import os
 
 from MyConfig import MyConfig
-from nonEpicProviderDirectory import nonEpicProviderDirectory
-from EpicProviderDirectory import EpicProviderDirectory
+from ProviderDirectory import ProviderDirectory
 from Splash import Splash
-#from BusyManager import BusyManager
+# from BusyManager import BusyManager
 
 
 class ProviderDirectoryFormatter(Frame):
@@ -17,100 +16,111 @@ class ProviderDirectoryFormatter(Frame):
         Frame.__init__(self, parent, background="white")
         self.parent = parent
 
-        #self.manager = BusyManager(self.parent)
+        # self.manager = BusyManager(self.parent)
 
-        self.epicHeaders = MyConfig('config').config['headers']
-        self.entryListbox = {}
-        self.nonEpicHeaders = []
+        self.epic_headers = MyConfig().headers
+        self.entry_listbox = dict()
 
-        self.initUI()
+        self.directory_folder = None
 
-    def initUI(self):
+        self.non_epic = ProviderDirectory()
+        self.non_epic_headers = list()
+
+        self.init_ui()
+
+    def init_ui(self):
         self.parent.title("non-Epic Provider Directory Formatter")
         self.pack(fill=BOTH, expand=1)
         
         menubar = Menu(self)
-        fileMenu = Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="File", menu=fileMenu) 
-        fileMenu.add_command(label="Open Directory...", command=self.OpenFile)
-        fileMenu.add_command(label="Save as...", command=self.FormatDirectory)
+        file_menu = Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="File", menu=file_menu)
+        file_menu.add_command(label="Open Directory...", command=self.open_file)
+        file_menu.add_command(label="Save as...", command=self.format_directory)
         self.parent.config(menu=menubar)
 
-        maxWidth = 0
-        for h in self.epicHeaders:
-            if len(h) > maxWidth:
-                maxWidth = len(h)
+        max_width = 0
+        for h in self.epic_headers:
+            if len(h) > max_width:
+                max_width = len(h)
 
-        for h in self.epicHeaders[2:]:
+        for h in self.epic_headers[2:]:
             if 'Unused' not in h:
-                self.makeEntry(h, maxWidth, exportselection = False)
+                self.make_entry(h, max_width, exportselection=False)
 
-    def OpenFile(self):
-        filePath = tkFileDialog.askopenfilename(parent=self,
-                                                filetypes=[('Provider Directories',('*.xls',
-                                                                                    '*.xlsx',
-                                                                                    '*.csv',
-                                                                                    '*.txt'))])
-        if os.path.isfile(filePath):
-            self.directoryFolder = os.path.dirname(filePath)
+    def open_file(self):
+        file_path = tkFileDialog.askopenfilename(parent=self,
+                                                 filetypes=[('Provider Directories', ('*.xls',
+                                                                                      '*.xlsx',
+                                                                                      '*.csv',
+                                                                                      '*.txt'))])
+        if os.path.isfile(file_path):
+            self.directory_folder = os.path.dirname(file_path)
             with Splash(self.parent, "splashImage.gif", 10.0):
-                #self.manager.busy()
-                self.nonEpicDirectory = nonEpicProviderDirectory(filePath).directory
-                self.nonEpicHeaders = self.nonEpicDirectory[0]
-                #self.manager.notbusy()
+                # self.manager.busy()
+                self.non_epic.read_file(file_path)
+                self.non_epic_headers = self.non_epic.directory_headers
+                # self.manager.notbusy()
             
-        for lb in self.entryListbox.keys():
-            self.FillListbox(lb) 
+        for lb in self.entry_listbox.keys():
+            self.fill_listbox(lb)
         return
 
-    def makeEntry(self, caption, w=None, **options):
-        entryFrame = Frame(self)
-        entryFrame.pack(side=LEFT, expand=True, fill=BOTH)
+    def make_entry(self, caption, w=None, **options):
+        entry_frame = Frame(self)
+        entry_frame.pack(side=LEFT, expand=True, fill=BOTH)
         
-        entryLabel = Label(entryFrame, text=caption)
-        entryLabel.pack(side=TOP, padx=2, pady=2)
+        entry_label = Label(entry_frame, text=caption)
+        entry_label.pack(side=TOP, padx=2, pady=2)
         
-        self.entryListbox[caption] = Listbox(entryFrame, **options)
+        self.entry_listbox[caption] = Listbox(entry_frame, **options)
         if w:
-            self.entryListbox[caption].config(width=w)
-            self.FillListbox(caption)
-        self.entryListbox[caption].bind('<<ListboxSelect>>', self.CheckSelection)
-        self.entryListbox[caption].pack(side=TOP, padx=2, pady=2, fill=BOTH, expand=True)
+            self.entry_listbox[caption].config(width=w)
+            self.fill_listbox(caption)
+        self.entry_listbox[caption].bind('<<ListboxSelect>>', self.check_selection)
+        self.entry_listbox[caption].pack(side=TOP, padx=2, pady=2, fill=BOTH, expand=True)
         
-        return entryFrame
+        return entry_frame
 
-    def FillListbox(self, caption):
-        for h in self.nonEpicHeaders:
-            self.entryListbox[caption].insert(END, h)
-        self.entryListbox[caption].config(height=len(self.nonEpicHeaders))
+    def fill_listbox(self, caption):
+        for h in self.non_epic_headers:
+            self.entry_listbox[caption].insert(END, h)
+        self.entry_listbox[caption].config(height=len(self.non_epic_headers))
 
-    def CheckSelection(self, event):
+    def check_selection(self, event):
         widget = event.widget
         selection = widget.curselection()
-        for lb in self.entryListbox.keys():
-            if (self.entryListbox[lb] is not widget) and (self.entryListbox[lb].curselection() == selection):
-                self.entryListbox[lb].selection_clear(selection)
+        for lb in self.entry_listbox.keys():
+            if (self.entry_listbox[lb] is not widget) and (self.entry_listbox[lb].curselection() == selection):
+                self.entry_listbox[lb].selection_clear(selection)
     
-    def FormatDirectory(self):
-        savePath = tkFileDialog.asksaveasfilename(parent = self,
-                                                  initialdir = self.directoryFolder,
-                                                  filetypes=[('Epic Formatted Directories',('*.csv'))])
-        mapping = []
-        for lb in self.entryListbox.keys():
-            if self.entryListbox[lb].curselection():
-                mapping += [(lb,self.entryListbox[lb].curselection()[0])]
+    def format_directory(self):
+        save_path = tkFileDialog.asksaveasfilename(parent=self,
+                                                   initialdir=self.directory_folder,
+                                                   filetypes=[('Epic Formatted Directories', '*.csv')])
 
-        #with Splash(self.parent, "splashImage.gif", 10.0):
-        EpicProviderDirectory(self.nonEpicDirectory[1:], mapping, savePath)
-        
+        mapping = dict()
+        for lb in self.entry_listbox.keys():
+            select = self.entry_listbox[lb].curselection()
+            if select:
+                selection = select[0]
+                # {"non-Epic Header": "Epic Header"}
+                mapping[self.non_epic_headers[selection]] = lb
+        self.non_epic.map_directory(mapping)
+
+        self.non_epic.save_directory(save_path)
+
         tkMessageBox.showinfo("Provider Directory Formatter",
-                              "Formatted non-Epic provider directory written to %s" % savePath)
+                              "Formatted non-Epic provider directory written to %s" % save_path)
+
+# # # #
+
 
 def main():
     root = Tk()
     gui = ProviderDirectoryFormatter(root)
-    #toplevel = root.winfo_toplevel()
-    #toplevel.wm_state('zoomed')
+    # toplevel = root.winfo_toplevel()
+    # toplevel.wm_state('zoomed')
     root.mainloop()  
 
 
