@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-# import xlrd
+import xlrd
 import codecs  # http://stackoverflow.com/questions/19591458/python-reading-from-a-file-and-saving-to-utf-8
 import csv
 import os
@@ -27,8 +27,13 @@ class ProviderDirectory(object):
 
     def read_file(self, file_path, mapping=None):
         self.directory_headers = list()
-        if any(ext in os.path.splitext(file_path)[1].upper() for ext in [u'.CSV', u'.TXT']):
+
+        file_ext = os.path.splitext(file_path)[1].upper()
+        if any(file_ext in ext for ext in [u'.CSV', u'.TXT']):
             self._read_csv_(file_path)
+        elif any(file_ext in ext for ext in [u'.XLS', u'.XLSX']):
+            self._read_xls_(file_path)
+
         self._set_headers_index_()
 
         if mapping:
@@ -37,11 +42,26 @@ class ProviderDirectory(object):
     def _read_csv_(self, file_path):
         with codecs.open(file_path, 'r', encoding='utf-8') as csv_file:
             for i, row in unicode_csv_reader(csv_file, delimiter=str(','), quotechar=str('"')):
-                if len(row) > 1:
-                    if not self.directory_headers:
-                        self.directory_headers = row
-                    else:
-                        self.directory[i] = row
+                self._read_line_(i, row)
+
+    def _read_xls_(self, file_path):
+        workbook = xlrd.open_workbook(file_path)
+        worksheet = workbook.sheet_by_index(0)
+        for i in range(worksheet.nrows):
+            row = []
+            for j in range(worksheet.ncols):
+                cell = worksheet.cell_value(i, j)
+                if isinstance(cell, float):
+                    cell = int(cell)
+                row.append(unicode(cell))
+            self._read_line_(i, row)
+
+    def _read_line_(self, number, row):
+        if len(row) > 1:
+            if not self.directory_headers:
+                self.directory_headers = row
+            else:
+                self.directory[number] = [r.strip() for r in row]
 
     def _set_headers_index_(self):
         self._directory_headers_index_ = dict()
@@ -120,7 +140,9 @@ def utf_8_encoder(unicode_csv_data):
 
 
 if __name__ == "__main__":
-    external = ProviderDirectory(file_path="test directories/MedStar.csv")
-    print external.standard_headers
-    print external.directory_headers
-    print external.map_directory()
+    for directory in ["test directories/MedStar.csv", "test directories/NCHIE_original.xlsx"]:
+        external = ProviderDirectory(file_path=directory)
+        print external.standard_headers
+        print external.directory_headers
+        for ln in external.directory:
+            print external.directory.get_item(ln)
