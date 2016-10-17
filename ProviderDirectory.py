@@ -14,7 +14,7 @@ from CmsProvider import CmsProvider
 class ProviderDirectory(object):
 
     def __init__(self, file_path=None):
-        self.standard_headers = MyConfig.headers
+        self.standard_headers = MyConfig().headers
 
         self.directory_headers = list()
         self._directory_headers_index_ = dict()
@@ -120,7 +120,7 @@ def utf_8_encoder(unicode_csv_data):
 
 
 if __name__ == "__main__":
-    nonEpic = ProviderDirectory(file_path="test directories/MedStar.csv")
-    print nonEpic.standard_headers
-    print nonEpic.directory_headers
-    print nonEpic.map_directory()
+    external = ProviderDirectory(file_path="test directories/MedStar.csv")
+    print external.standard_headers
+    print external.directory_headers
+    print external.map_directory()

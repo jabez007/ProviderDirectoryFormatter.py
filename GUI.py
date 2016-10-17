@@ -18,18 +18,18 @@ class ProviderDirectoryFormatter(Frame):
 
         # self.manager = BusyManager(self.parent)
 
-        self.epic_headers = MyConfig().headers
+        self.internal_headers = MyConfig().headers
         self.entry_listbox = dict()
 
         self.directory_folder = None
 
-        self.non_epic = ProviderDirectory()
-        self.non_epic_headers = list()
+        self.external = ProviderDirectory()
+        self.external_headers = list()
 
         self.init_ui()
 
     def init_ui(self):
-        self.parent.title("non-Epic Provider Directory Formatter")
+        self.parent.title("Provider Directory Formatter")
         self.pack(fill=BOTH, expand=1)
         
         menubar = Menu(self)
@@ -40,11 +40,11 @@ class ProviderDirectoryFormatter(Frame):
         self.parent.config(menu=menubar)
 
         max_width = 0
-        for h in self.epic_headers:
+        for h in self.internal_headers:
             if len(h) > max_width:
                 max_width = len(h)
 
-        for h in self.epic_headers[2:]:
+        for h in self.internal_headers[2:]:
             if 'Unused' not in h:
                 self.make_entry(h, max_width, exportselection=False)
 
@@ -58,8 +58,8 @@ class ProviderDirectoryFormatter(Frame):
             self.directory_folder = os.path.dirname(file_path)
             with Splash(self.parent, "splashImage.gif", 10.0):
                 # self.manager.busy()
-                self.non_epic.read_file(file_path)
-                self.non_epic_headers = self.non_epic.directory_headers
+                self.external.read_file(file_path)
+                self.external_headers = self.external.directory_headers
                 # self.manager.notbusy()
             
         for lb in self.entry_listbox.keys():
@@ -83,9 +83,9 @@ class ProviderDirectoryFormatter(Frame):
         return entry_frame
 
     def fill_listbox(self, caption):
-        for h in self.non_epic_headers:
+        for h in self.external_headers:
             self.entry_listbox[caption].insert(END, h)
-        self.entry_listbox[caption].config(height=len(self.non_epic_headers))
+        self.entry_listbox[caption].config(height=len(self.external_headers))
 
     def check_selection(self, event):
         widget = event.widget
@@ -97,21 +97,22 @@ class ProviderDirectoryFormatter(Frame):
     def format_directory(self):
         save_path = tkFileDialog.asksaveasfilename(parent=self,
                                                    initialdir=self.directory_folder,
-                                                   filetypes=[('Epic Formatted Directories', '*.csv')])
+                                                   filetypes=[('Internal Formatted Directories', '*.csv')])
 
-        mapping = dict()
-        for lb in self.entry_listbox.keys():
-            select = self.entry_listbox[lb].curselection()
-            if select:
-                selection = select[0]
-                # {"non-Epic Header": "Epic Header"}
-                mapping[self.non_epic_headers[selection]] = lb
-        self.non_epic.map_directory(mapping)
+        if save_path:
+            mapping = dict()
+            for lb in self.entry_listbox.keys():
+                select = self.entry_listbox[lb].curselection()
+                if select:
+                    selection = select[0]
+                    # {"External Header": "Internal Header"}
+                    mapping[self.external_headers[selection]] = lb
+            self.external.map_directory(mapping)
 
-        self.non_epic.save_directory(save_path)
+            self.external.save_directory(save_path)
 
-        tkMessageBox.showinfo("Provider Directory Formatter",
-                              "Formatted non-Epic provider directory written to %s" % save_path)
+            tkMessageBox.showinfo("Provider Directory Formatter",
+                                  "Formatted external provider directory written to %s" % save_path)
 
 # # # #
 
