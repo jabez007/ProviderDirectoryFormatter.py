@@ -1,7 +1,11 @@
+#testing data
+test*/
+*.err
+setup.py2exe
+
 #Eclipse folders and files
 .project
 .pydevproject
-*.err
 setup.py
 
 # Byte-compiled / optimized / DLL files
@@ -73,3 +77,4 @@ target/
 
 # pyenv
 .python-version
+.idea/
